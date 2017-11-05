@@ -10,38 +10,71 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Lucene.Unity {
 
+    /// <summary>
+    /// A wrapper around Lucene.NET to provide a simplified interface for the most common use-cases.
+    /// Additionally, this provides coroutines for indexing to enable Unity style cooperative multi-tasking.
+    /// </summary>
     public class Lucene3D {
 
+        /// <summary>
+        /// Create a new instance of Lucene3D that is intended to be stored and used throughout the life of the program.
+        /// When running on iOS, this constructor must be called from the main thread.
+        /// </summary>
+        /// <param name="name">The name of the index directory, the default 'index' is recommended.</param>
         public Lucene3D(string name = "index") {
-            // TODO: Guard against bad names.
+            if(!ValidCrossPlatformName(name)) {
+                throw new ArgumentException($"In order to enable the best cross platform ability, names are limited to {validNamePattern}", nameof(name));
+            }
             indexDirectory = new DirectoryInfo(Path.Combine(Application.persistentDataPath, name));
         }
 
-        public void DefineIndexTerm<T>(string name, Func<T, string> indexer, IndexOptions options) {
+        /// <summary>
+        /// Define index text through the use of a lambda expression that can extract the text from a given object of type T.
+        /// Whenever a T is indexed, this lambda will be called to extract the appropriate text for indexing, enabling the central definition of indexes.
+        /// Multiple types can be stored together in a single index, create the appropriate fields for each type.
+        /// To ensure that indexes can be updated (without being complete reconstructed), define a IndexOptions.PrimaryKey for each T.
+        /// </summary>
+        /// <typeparam name="T">The type of indexed objects that this field is applied to.</typeparam>
+        /// <param name="name">The name of field that is used by Lucene.</param>
+        /// <param name="indexer">The lambda that extracts the text for indexing from T.</param>
+        /// <param name="options">The storages options for the field that are passed to Lucene for storage and indexing.</param>
+        public void DefineIndexField<T>(string name, Func<T, string> indexer, IndexOptions options) {
             if(indexer == null) {
                 throw new ArgumentNullException(nameof(indexer));
             }
             var type = typeof(T);
             if(!indexers.ContainsKey(type)) {
-                indexers.Add(type, new TypeDefinition());
+                var newDefn = new TypeDefinition();
+                indexers.Add(type, newDefn);
             }
             var typeDefinition = indexers[type];
-            var indexDefinition = new IndexDefinition { Name = name, Indexer = GenericiseLambda(indexer), Options = options };
+            var indexDefinition = new IndexDefinition { Name = name, Indexer = TypedToUntypedLambda(indexer), Options = options };
             if(options == IndexOptions.PrimaryKey) {
                 if(typeDefinition.PrimaryKey != null) {
                     throw new ArgumentException("Option IndexOptions.PrimaryKey can only be specified for one index.", nameof(options));
                 }
                 typeDefinition.PrimaryKey = indexDefinition;
             }
+            if(options == IndexOptions.IndexTerms || options == IndexOptions.IndexTermsAndStore) {
+                if(!defaultFields.Any(e => e == name)) {
+                    var fieldsList = defaultFields.ToList();
+                    fieldsList.Add(name);
+                    defaultFields = fieldsList.ToArray();
+                }
+            }
             typeDefinition.Indexers.Add(indexDefinition);
         }
 
+        /// <summary>
+        /// Index the given object, where the text to be indexed must have been previously defined using DefineIndexField.
+        /// </summary>
+        /// <typeparam name="T">The implicit type of the item.</typeparam>
+        /// <param name="item">The item to be indexed.</param>
         public void Index<T>(T item) {
             if(item == null) {
                 throw new ArgumentNullException(nameof(item));
@@ -49,10 +82,21 @@ namespace Lucene.Unity {
             IndexInternal(new T[] { item }, processYields: false);
         }
 
+        /// <summary>
+        /// Index the given objects, where the text to be indexed must have been previously defined using DefineIndexField.
+        /// </summary>
+        /// <typeparam name="T">The implicit type of the items.</typeparam>
+        /// <param name="items">The list of items to be indexed.</param>
         public void Index<T>(IEnumerable<T> items) {
             IndexInternal(items, processYields: false);
         }
 
+        /// <summary>
+        /// Index the given objects, where the text to be indexed must have been previously defined using DefineIndexField.
+        /// </summary>
+        /// <typeparam name="T">The implicit type of the items.</typeparam>
+        /// <param name="items">The list of items to be indexed.</param>
+        /// <param name="timeSlice">The maximum amount of time before the coroutine yields for other processing.  Use to strike a balance between not dropping frames and indexing performance.</param>
         public IEnumerator IndexCoroutine<T>(IEnumerable<T> items, int timeSlice = 13) {
             yield return IndexInternal<T>(items, timeSlice, true);
         }
@@ -74,9 +118,8 @@ namespace Lucene.Unity {
             var notNullItems = items.Where(e => e != null);
             var total = notNullItems.Count();
             OnProgress("Indexing", 0, total);
-            var directory = FSDirectory.Open(IndexDirectory);
+            var directory = FSDirectory.Open(indexDirectory);
             var create = !IndexReader.IndexExists(directory);
-            UnityEngine.Debug.Log($"Need to create index? {create}");
             using(var writer = new IndexWriter(directory, analyzer, create, IndexWriter.MaxFieldLength.LIMITED)) {
                 foreach(var item in notNullItems) {
                     var doc = new Document();
@@ -128,11 +171,11 @@ namespace Lucene.Unity {
                 throw new ArgumentNullException(nameof(expression));
             }
             try {
-                //Debug.Log($"Directory: {IndexDirectory.FullName}");
-                using(var indexReader = IndexReader.Open(FSDirectory.Open(IndexDirectory), true)) {
+                using(var indexReader = IndexReader.Open(FSDirectory.Open(indexDirectory), true)) {
                     using(var indexSearcher = new IndexSearcher(indexReader)) {
                         using(var analyzer = new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_30)) {
-                            var parser = new QueryParser(Lucene.Net.Util.Version.LUCENE_30, "headline", analyzer);
+                            var parser = new MultiFieldQueryParser(Lucene.Net.Util.Version.LUCENE_30, defaultFields.ToArray(), analyzer);
+                            //var parser = new QueryParser(Lucene.Net.Util.Version.LUCENE_30, "headline", analyzer);
                             var query = parser.Parse(expression);
                             var hits = indexSearcher.Search(query, null, maxResults).ScoreDocs;
                             var docs = hits.Select(e => indexSearcher.Doc(e.Doc)).ToList(); // Need ToList as indexSearcher will be disposed...
@@ -146,6 +189,12 @@ namespace Lucene.Unity {
             }
         }
 
+        private string[] defaultFields = new string[0];
+        
+        /// <summary>
+        /// The progress event provides callbacks for updates on processing within Lucene3D.
+        /// Typically used to provide user feedback on long running Index operations over large data sets.
+        /// </summary>
         public event EventHandler<LuceneProgressEventArgs> Progress;
         private LuceneProgressEventArgs progressEventArgs = new LuceneProgressEventArgs();
         private Stopwatch progressStopwatch = new Stopwatch();
@@ -162,11 +211,13 @@ namespace Lucene.Unity {
             }
         }
 
-        private bool InvalidSearchTerm(string text) {
-            return text.StartsWith("~") || string.IsNullOrWhiteSpace(text);
+        private bool ValidCrossPlatformName(string name) {
+            return validName.IsMatch(name);
         }
+        private const string validNamePattern = "[a-zA-Z0-9_]{1,64}";
+        private Regex validName = new Regex(validNamePattern);
 
-        private Func<object, string> GenericiseLambda<T>(Func<T, string> func) {
+        private Func<object, string> TypedToUntypedLambda<T>(Func<T, string> func) {
             if(func == null) {
                 return null;
             }
@@ -175,14 +226,6 @@ namespace Lucene.Unity {
             }
         }
 
-        private DirectoryInfo IndexDirectory {
-            get {
-                if(indexDirectory == null) {
-                    indexDirectory = new DirectoryInfo(Path.Combine(Application.persistentDataPath, "index"));
-                }
-                return indexDirectory;
-            }
-        }
         private DirectoryInfo indexDirectory;
 
         private Dictionary<Type, TypeDefinition> indexers = new Dictionary<Type, TypeDefinition>();
