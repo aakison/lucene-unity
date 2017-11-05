@@ -58,9 +58,11 @@ namespace Lucene.Net.Documents
 		
 		protected internal AbstractField(System.String name, Field.Store store, Field.Index index, Field.TermVector termVector)
 		{
-			if (name == null)
-				throw new System.NullReferenceException("name cannot be null");
-			this.internalName = StringHelper.Intern(name); // field names are interned
+			if (name == null) {
+                throw new System.NullReferenceException("name cannot be null");
+            }
+
+            this.internalName = StringHelper.Intern(name); // field names are interned
 
 		    this.internalIsStored = store.IsStored();
 		    this.internalIsIndexed = index.IsIndexed();
@@ -176,11 +178,13 @@ namespace Lucene.Net.Documents
 
 	    public virtual byte[] GetBinaryValue(byte[] result)
 		{
-			if (internalIsBinary || fieldsData is byte[])
-				return (byte[]) fieldsData;
-			else
-				return null;
-		}
+			if (internalIsBinary || fieldsData is byte[]) {
+                return (byte[]) fieldsData;
+            }
+            else {
+                return null;
+            }
+        }
 
 	    /// <summary> Returns length of byte[] segment that is used as value, if Field is not binary
 	    /// returned value is undefined
@@ -239,46 +243,58 @@ namespace Lucene.Net.Documents
 	    /// <summary>Prints a Field for human consumption. </summary>
 		public override System.String ToString()
 		{
-			System.Text.StringBuilder result = new System.Text.StringBuilder();
+			var result = new System.Text.StringBuilder();
 			if (internalIsStored)
 			{
 				result.Append("stored");
 			}
 			if (internalIsIndexed)
 			{
-				if (result.Length > 0)
-					result.Append(",");
-				result.Append("indexed");
+				if (result.Length > 0) {
+                    result.Append(",");
+                }
+
+                result.Append("indexed");
 			}
 			if (internalIsTokenized)
 			{
-				if (result.Length > 0)
-					result.Append(",");
-				result.Append("tokenized");
+				if (result.Length > 0) {
+                    result.Append(",");
+                }
+
+                result.Append("tokenized");
 			}
 			if (storeTermVector)
 			{
-				if (result.Length > 0)
-					result.Append(",");
-				result.Append("termVector");
+				if (result.Length > 0) {
+                    result.Append(",");
+                }
+
+                result.Append("termVector");
 			}
 			if (storeOffsetWithTermVector)
 			{
-				if (result.Length > 0)
-					result.Append(",");
-				result.Append("termVectorOffsets");
+				if (result.Length > 0) {
+                    result.Append(",");
+                }
+
+                result.Append("termVectorOffsets");
 			}
 			if (storePositionWithTermVector)
 			{
-				if (result.Length > 0)
-					result.Append(",");
-				result.Append("termVectorPosition");
+				if (result.Length > 0) {
+                    result.Append(",");
+                }
+
+                result.Append("termVectorPosition");
 			}
 			if (internalIsBinary)
 			{
-				if (result.Length > 0)
-					result.Append(",");
-				result.Append("binary");
+				if (result.Length > 0) {
+                    result.Append(",");
+                }
+
+                result.Append("binary");
 			}
 			if (internalOmitNorms)
 			{

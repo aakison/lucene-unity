@@ -303,21 +303,31 @@ namespace Lucene.Net.Documents
         /// </summary>
         public Field(System.String name, bool internName, System.String value, Store store, Index index, TermVector termVector)
         {
-            if (name == null)
+            if (name == null) {
                 throw new System.NullReferenceException("name cannot be null");
-            if (value == null)
+            }
+
+            if (value == null) {
                 throw new System.NullReferenceException("value cannot be null");
-            if (name.Length == 0 && value.Length == 0)
+            }
+
+            if (name.Length == 0 && value.Length == 0) {
                 throw new System.ArgumentException("name and value cannot both be empty");
-            if (index == Index.NO && store == Store.NO)
+            }
+
+            if (index == Index.NO && store == Store.NO) {
                 throw new System.ArgumentException("it doesn't make sense to have a field that " + "is neither indexed nor stored");
-            if (index == Index.NO && termVector != TermVector.NO)
+            }
+
+            if (index == Index.NO && termVector != TermVector.NO) {
                 throw new System.ArgumentException("cannot store term vector information " + "for a field that is not indexed");
-            
-            if (internName)
-            // field names are optionally interned
+            }
+
+            if (internName) {
+                // field names are optionally interned
                 name = StringHelper.Intern(name);
-            
+            }
+
             this.internalName = name;
             
             this.fieldsData = value;
@@ -368,11 +378,14 @@ namespace Lucene.Net.Documents
         /// <throws>  NullPointerException if name or reader is <c>null</c> </throws>
         public Field(System.String name, System.IO.TextReader reader, TermVector termVector)
         {
-            if (name == null)
+            if (name == null) {
                 throw new System.NullReferenceException("name cannot be null");
-            if (reader == null)
+            }
+
+            if (reader == null) {
                 throw new System.NullReferenceException("reader cannot be null");
-            
+            }
+
             this.internalName = StringHelper.Intern(name); // field names are interned
             this.fieldsData = reader;
             
@@ -418,11 +431,14 @@ namespace Lucene.Net.Documents
         /// <throws>  NullPointerException if name or tokenStream is <c>null</c> </throws>
         public Field(System.String name, TokenStream tokenStream, TermVector termVector)
         {
-            if (name == null)
+            if (name == null) {
                 throw new System.NullReferenceException("name cannot be null");
-            if (tokenStream == null)
+            }
+
+            if (tokenStream == null) {
                 throw new System.NullReferenceException("tokenStream cannot be null");
-            
+            }
+
             this.internalName = StringHelper.Intern(name); // field names are interned
             this.fieldsData = null;
             this.tokenStream = tokenStream;
@@ -469,16 +485,20 @@ namespace Lucene.Net.Documents
         public Field(System.String name, byte[] value_Renamed, int offset, int length, Store store)
         {
             
-            if (name == null)
+            if (name == null) {
                 throw new System.ArgumentException("name cannot be null");
-            if (value_Renamed == null)
+            }
+
+            if (value_Renamed == null) {
                 throw new System.ArgumentException("value cannot be null");
-            
+            }
+
             this.internalName = StringHelper.Intern(name); // field names are interned
             fieldsData = value_Renamed;
             
-            if (store == Store.NO)
+            if (store == Store.NO) {
                 throw new System.ArgumentException("binary values can't be unstored");
+            }
 
             internalIsStored = store.IsStored();
             internalIsIndexed = false;
