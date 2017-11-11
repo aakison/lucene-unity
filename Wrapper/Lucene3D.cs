@@ -118,7 +118,7 @@ namespace Lucene.Unity {
             var notNullItems = items.Where(e => e != null);
             var total = notNullItems.Count();
             OnProgress("Indexing", 0, total);
-            var directory = FSDirectory.Open(indexDirectory);
+            var directory = SimpleFSDirectory.Open(indexDirectory);
             var create = !IndexReader.IndexExists(directory);
             using(var writer = new IndexWriter(directory, analyzer, create, IndexWriter.MaxFieldLength.LIMITED)) {
                 foreach(var item in notNullItems) {
@@ -171,7 +171,8 @@ namespace Lucene.Unity {
                 throw new ArgumentNullException(nameof(expression));
             }
             try {
-                using(var indexReader = IndexReader.Open(FSDirectory.Open(indexDirectory), true)) {
+                var directory = SimpleFSDirectory.Open(indexDirectory);
+                using(var indexReader = IndexReader.Open(directory, true)) {
                     using(var indexSearcher = new IndexSearcher(indexReader)) {
                         using(var analyzer = new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_30)) {
                             var parser = new MultiFieldQueryParser(Lucene.Net.Util.Version.LUCENE_30, defaultFields.ToArray(), analyzer);
